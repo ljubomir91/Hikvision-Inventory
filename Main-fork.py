@@ -1,3 +1,5 @@
+import paramiko
+import json
 import requests
 from requests.auth import HTTPDigestAuth
 from xml.etree import ElementTree
@@ -7,7 +9,7 @@ import time
 from datetime import datetime
 # import ipaddress
 from pandas import *
-# import paramiko
+# import netmiko
 from multiprocessing import Pool
 import multiprocessing
 
@@ -103,42 +105,137 @@ def user_password_finder(username, password, addr):
 # start password generator
 # for _ in ipstart:
 #     user_password_finder(use, pas, _)
-def ubiquiti_connect():
-    print("Hi")
-    # example
-    # def get_cdp_neighbor_details(ip, username, password, enable_secret):
-    #     """
-    #     get the CDP neighbor detail from the given device using SSH
-    #
-    #     :param ip: IP address of the device
-    #     :param username: username used for the authentication
-    #     :param password: password used for the authentication
-    #     :param enable_secret: enable secret
-    #     :return:
-    #     """
-    #     # establish a connection to the device
-    #     ssh_connection = ConnectHandler(
-    #         device_type='cisco_ios',
-    #         ip=ip,
-    #         username=username,
-    #         password=password,
-    #         secret=enable_secret
-    #     )
-    #
-    #     # enter enable mode
-    #     ssh_connection.enable()
-    #
-    #     # prepend the command prompt to the result (used to identify the local host)
-    #     result = ssh_connection.find_prompt() + "\n"
-    #
-    #     # execute the show cdp neighbor detail command
-    #     # we increase the delay_factor for this command, because it take some time if many devices are seen by CDP
-    #     result += ssh_connection.send_command("show cdp neighbor detail", delay_factor=2)
-    #
-    #     # close SSH connection
-    #     ssh_connection.disconnect()
-    #
-    #     return result
+def ssh_connect():
+    hostname = "10.4.8.2"
+    port = 22
+    username = "ubnt"
+    password = "Birdseye123!"
+    try:
+        client = paramiko.SSHClient()
+        client.load_system_host_keys()
+        client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        client.connect(hostname, port=port, username=username, password=password)
+        transport = client.get_transport()
+        channel = transport.open_session()
+        channel.get_pty()
+        channel.invoke_shell()
+        #time delayi n between commands
+        t = 2
+        time.sleep(t)
+        print('pt1')
+        channel.send("show version\n")
+        time.sleep(t)
+        x = channel.recv(65535).decode()
+        x.splitlines()
+        # replace the values with , (comma)
+        x = x.replace("System Description............................. ", "")
+        # replace the values with , (comma)
+        x = x.replace("Machine Type................................... ", "")
+        # replace the values with , (comma)
+        x = x.replace("Serial Number.................................. ", "")
+        # replace the values with , (comma)
+        x = x.replace("Part Number.................................... ", "")
+        # replace the values with , (comma)
+        x = x.replace("Burned In MAC Address.......................... ", "")
+        # replace the values with , (comma)
+        x = x.replace("Software Version............................... ", "")
+        # replace the values with , (comma)
+        x = x.replace("Machine Model.................................. ", "")
+        # replace the values with , (comma)
+        x = x.replace("Hardware Revision.............................. ", "")
+        print(x)
+
+        print("original" + channel.recv(65535).decode())
+        # Send enable command and get info
+        # time.sleep(t)
+        # print('pt1')
+        # channel.send("enable\n")
+        # time.sleep(t)
+        # print(channel.recv(65535).decode())
+        # time.sleep(t)
+        # channel.send("Birdseye123!\n")
+        # print('pt2')
+        # time.sleep(t)
+        # print(channel.recv(65535).decode())
+        # time.sleep(t)
+        # channel.send("show interface ethernet all\n")
+        # time.sleep(t)
+        # print(channel.recv(65535).decode())
+
+        client.close()
+    except Exception as err:
+        print(err)
+
+
+
+ssh_connect()
+
+
+# Print Show mikrotik IP addresses that are assigned to different interfaces
+def mikrotik_api(address, usr, pa):
+    payload = {
+        "Content-Type": "application/json",
+    }
+    headers = {
+        "Content-Type": "application/json"
+    }
+    try:
+        response = requests.request('GET', f"https://{address}/rest/ip/address",
+                                    headers=headers, auth=(usr, pa),
+                                    data=payload, verify=False, timeout=10)
+        data = json.loads(json.dumps(response.json()))
+        for d in data:
+            stuff_addr = d['actual-interface']
+            stuff_ip = d['address']
+            print(stuff_addr)
+            print(stuff_ip)
+
+        # print(response.raise_for_status())
+        # print(response.content)
+        # print(data)
+    #           print(json.loads(json.dumps(data)))
+    except Exception as err:
+        print(err)
+
+
+# mikrotik_api("10.10.10.1", "admin", "Wishmaster91")
+# ubiquiti_connect()
+
+
+# example
+# def get_cdp_neighbor_details(ip, username, password, enable_secret):
+#     """
+#     get the CDP neighbor detail from the given device using SSH
+#
+#     :param ip: IP address of the device
+#     :param username: username used for the authentication
+#     :param password: password used for the authentication
+#     :param enable_secret: enable secret
+#     :return:
+#     """
+#     # establish a connection to the device
+#     ssh_connection = ConnectHandler(
+#         device_type='cisco_ios',
+#         ip=ip,
+#         username=username,
+#         password=password,
+#         secret=enable_secret
+#     )
+#
+#     # enter enable mode
+#     ssh_connection.enable()
+#
+#     # prepend the command prompt to the result (used to identify the local host)
+#     result = ssh_connection.find_prompt() + "\n"
+#
+#     # execute the show cdp neighbor detail command
+#     # we increase the delay_factor for this command, because it take some time if many devices are seen by CDP
+#     result += ssh_connection.send_command("show cdp neighbor detail", delay_factor=2)
+#
+#     # close SSH connection
+#     ssh_connection.disconnect()
+#
+#     return result
 
 def mikrotik(camera_ip):
     mikrotik_file_path = os.path.join(os.path.expanduser('~'), 'mikrotik_script.csv')
@@ -170,8 +267,8 @@ def mikrotik(camera_ip):
         file.flush()
 
 
-for i in addresses:
-    mikrotik(i)
+# for i in addresses:
+#     mikrotik(i)
 
 
 #  ("10.1.20.200")
